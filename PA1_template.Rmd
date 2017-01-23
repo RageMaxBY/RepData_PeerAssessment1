@@ -1,25 +1,123 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "Analyzing personal activity monitoring data"
+author: "Pavel Bukhtik"
+date: "22/01/2017"
+output: md_document
 ---
-
 
 ## Loading and preprocessing the data
 
+Download and load data into data frame "data"
 
+```{r, echo=TRUE}
+if(!file.exists("activity.csv")) {
+        temp <- tempfile()
+        download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip",temp)
+        unzip(temp)
+        unlink(temp)
+}
+data <- read.csv("activity.csv")
+
+```
 
 ## What is mean total number of steps taken per day?
 
+Sum steps by day, create histogram.
 
+```{r, echo=TRUE}
+stepsByDay <- aggregate(steps ~ date, data, sum)
+hist(stepsByDay$steps, main = "Total steps each day", col="green4", xlab="Number of Steps")
+```
+
+Calculate mean and median.
+
+```{r, echo=TRUE}
+stepsMean <- mean(stepsByDay$steps)
+stepsMedian <- median(stepsByDay$steps)
+```
+
+The mean is `r round(stepsMean)`
+The median is `r round(stepsMedian)`
 
 ## What is the average daily activity pattern?
 
+Calculate average steps for each interval for all days and plot the average number of steps per day by interval.
 
+```{r, echo=TRUE}
+stepsByInterval <- aggregate(steps ~ interval, data, mean)
+plot(stepsByInterval$interval,stepsByInterval$steps, type="l", xlab="Interval", ylab="Number of steps",main="Average number of steps per day by interval")
+```
+
+Find interval with most average steps.
+
+```{r, echo=TRUE}
+maxInterval <- stepsByInterval[which.max(stepsByInterval$steps),1]
+```
+
+The 5-minute interval, on average across all the days in the data set, containing the maximum number of steps is `r maxInterval`
 
 ## Imputing missing values
 
+Missing data needed to be imputed. Missing values were imputed by inserting the average for each interval.
 
+```{r, echo=TRUE}
+incomplete <- sum(!complete.cases(data))
+imputedData <- transform(data, steps = ifelse(is.na(data$steps), stepsByInterval$steps[match(data$interval, stepsByInterval$interval)], data$steps))
+imputedData[as.character(imputedData$date) == "2012-10-01", 1] <- 0
+```
+
+NAs for 10-01-2012 were assumed to be zeros to fit the rising trend of the data.
+
+Recount total steps by day and create histogram.
+
+```{r, echo=TRUE}
+stepsByDay2 <- aggregate(steps ~ date, imputedData, sum)
+hist(stepsByDay2$steps, main = "Total steps each day", col="cyan", xlab="Number of steps")
+hist(stepsByDay$steps, main = "Total steps each day", col="green4", xlab="Number of steps", add=TRUE)
+legend("topright", c("Imputed", "Non-imputed"), col=c("cyan", "green"), lwd=10)
+```
+
+Calculate new mean and median for imputed data.
+
+```{r, echo=TRUE}
+stepsMean2 <- mean(stepsByDay2$steps)
+stepsMedian2 <- median(stepsByDay2$steps)
+```
+
+Calculate difference between imputed and non-imputed data.
+
+```{r, echo=TRUE}
+meanDiff <- stepsMean2 - stepsMean
+medianDiff <- stepsMedian2 - stepsMedian
+```
+
+Calculate total difference.
+
+```{r, echo=TRUE}
+totalDiff <- sum(stepsByDay2$steps) - sum(stepsByDay$steps)
+```
+
+The imputed data mean is `r round(stepsMean2)`
+
+The imputed data median is `r round(stepsMedian2)`
+
+The difference between the non-imputed mean and imputed mean is `r meanDiff`
+
+The difference between the non-imputed median and imputed median is `r medianDiff`
+
+The difference between total number of steps between imputed and non-imputed data is `r round(totalDiff)`.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+Create a plot to compare number of steps between the week and weekend.
+
+```{r, echo=TRUE}
+weekdays <- c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
+imputedData$dow = as.factor(ifelse(is.element(weekdays(as.Date(imputedData$date)),weekdays), "Weekday", "Weekend"))
+
+stepsByInterval2 <- aggregate(steps ~ interval + dow, imputedData, mean)
+
+library(lattice)
+
+xyplot(stepsByInterval2$steps ~ stepsByInterval2$interval|stepsByInterval2$dow, main="Average steps per day by interval",xlab="Interval", ylab="Steps",layout=c(1,2), type="l")
+```
